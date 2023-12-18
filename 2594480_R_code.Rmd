@@ -1,0 +1,219 @@
+---
+title: "Nowcasting hospital deaths from  COVID-19 in London"
+author: "Shiyu Lyu"
+date: "8/30/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gamair)
+library(nlme)
+library(foreign)
+library(mgcv)
+library(ggplot2)
+library("ggthemes")
+library(dplyr) 
+library(gridExtra)
+library(RColorBrewer)
+```
+
+## Part 1
+
+Deal with the covid_deaths data and select the data which happened in London. Delect the region column
+to get the dataset1.
+
+```{r ，echo=FALSE}
+
+
+covid_deaths <- load("~/Introduction-R/AllDatasets/Dissertation/covid_deaths.RData")
+covid_deaths <- eval(parse(text = covid_deaths))
+head(covid_deaths)
+str(covid_deaths)
+
+
+dataset1 <- covid_deaths %>%
+  filter(region == "London")%>%
+  select(-region)
+head(dataset1)
+
+#Data Exploration (eda)
+library(lattice)
+
+p1<-xyplot(deaths~delay, col = '#1A814F', pch = 15,data = dataset1,type=c("p","r"))
+p2<-xyplot(deaths~weekday,col = '#6595A3', pch = 15,data = dataset1,type=c("p","r"))
+p3<-xyplot(deaths~day, col = '#E7713B', pch = 18,data = dataset1,type=c("p","r"))
+grid.arrange(p1, p2, p3, ncol=3)
+
+
+
+#test multicolinearity
+#vif < 10 , no serious multicolinearity
+library(car)
+vif_test <- lm(deaths~ day+ weekday + delay,data=dataset1)
+vif(vif_test)
+
+#ks.test
+ks.test(dataset1$deaths, pnorm)
+kruskal.test(dataset1$weekday~dataset1$deaths,dataset1)
+kruskal.test(dataset1$delay~dataset1$deaths,dataset1)
+
+
+
+#total time seties(no delay only weekday and day)
+
+dataset2 <- dataset1 %>%
+  group_by(date) %>%
+  summarise(day2 = mean(day), weekday2 = mean(weekday),deaths2 = sum(deaths))
+
+dataset2[is.na(dataset2)] <- 0
+
+dataset2
+
+dataset2_deaths_trend<- ggplot(dataset2, aes(date,deaths2)) + geom_line(color="black") +
+  xlab("Time") + ylab("Deaths(sum)") + ggtitle("Sum of deaths data over time ")+
+  theme_test()
+  
+dataset2_deaths_trend
+
+p4<- ggplot(dataset1, aes(date, deaths))+ geom_line(color="black") +
+  xlab("Time") + ylab("Deaths") + ggtitle("Original deaths data over time")+
+  theme_test()
+p4
+
+
+grid.arrange(p4,dataset2_deaths_trend,ncol = 2)
+
+#filter = delay(delay 1 and 2)
+
+dataset_delay_1 <- dataset1 %>%
+  filter(delay == 1)
+deaths_trend_1<- ggplot(dataset_delay_1, aes(date,deaths)) + geom_line(color="black") +
+  xlab("Time") + ylab("Deaths") + ggtitle("Deaths data over time with 1 delay")+
+  theme_test()
+deaths_trend_1
+
+dataset_delay_2 <- dataset1 %>%
+  filter(delay == 2)
+deaths_trend_2<- ggplot(dataset_delay_2, aes(date,deaths)) + geom_line(color="black") +
+  xlab("Time") + ylab("Deaths") + ggtitle("Deaths data over time with 2 delay")+
+  theme_test()
+deaths_trend_2
+
+grid.arrange(deaths_trend_1,deaths_trend_2,ncol=2)
+
+
+
+
+
+
+```
+
+
+## Part 2
+
+Taking 84 days as the connection point (both dataset1 and dataset3 have 84 rows, for the 14 delays, the number of deaths with delay = 1 in dataset1 is extracted (delay=i row in the data frame, the fifth column is added to the first row of dataset3). in the second column.
+
+In addition to 84day, add weekday as the index, a total of 12 weeks.
+Arrange the number of deaths under each delay into a column by date, the number of deaths in delay1 is the third column, and the number of deaths from April to June in delay2 is the fourth column, so the number of columns with delay = i + 2 is the number of the delay number of deaths.
+
+Rename each column of dataset3. Transform the parallelogram data into rectangles according to the definition of delay, for delays 1 to 14
+
+```{r , echo=FALSE}
+
+#data structure changing
+dataset3<- data.frame(unique(dataset1$day))
+for(i in 1:14){
+  dataset3[,i+1] <- dataset1[dataset1$delay==i,5]}
+
+
+dataset3= data.frame(day = 1:84, weekday = c(4,5,6,7,rep(1:7,11), 1,2,3))
+
+for(i in 1:14){
+  dataset3[,i+2] = dataset1[dataset1$delay==i,5]
+}
+
+dataset3 = dataset3 %>%
+  dplyr::rename("weekday"= 2, "delay_1" = 3, "delay_2" = 4, "delay_3" = 5, "delay_4" = 6,"delay_5" = 7,"delay_6" = 8, "delay_7" = 9, "delay_8" = 10, "delay_9" = 11, "delay_10" = 12,"delay_11" = 13, "delay_12" = 14, "delay_13" = 15, "delay_14" = 16) 
+head(dataset3)
+
+
+for(i in 3:16){
+  dataset4 [1:58, i] = dataset3[(17 - i):(74 - i), i]
+}                 
+
+dataset5 = dataset4 %>%
+  dplyr::rename("1" = 3, "2" = 4, "3" = 5, "4" = 6,"5" = 7,"6" = 8, "7" = 9, "8" = 10, "9" = 11, "10" = 12,"11" =13, "12" = 14, "13" = 15, "14" = 16) 
+library(tidyr)
+dataset5 = gather(data = dataset5, key = delay, value = deaths, -day, -weekday)
+dataset5$delay = as.numeric(dataset5$delay)
+dataset5
+
+#non-parametric test
+
+kruskal.test(weekday~deaths,dataset5)
+kruskal.test(delay~deaths,dataset5)
+```
+
+## Part 3 (results)
+
+```{r , echo=FALSE}
+#new model
+#select df
+
+
+
+library(mgcv)
+library( nlme)
+covid_gam1 <- gam(deaths~ s(day) + s(delay) + as.factor(weekday),family = nb(link = "log"),
+                  dataset5)
+gam.check(covid_gam1)
+summary(covid_gam1 )
+
+covid_gam2 <- gam(deaths~ s(day) + s(delay) + as.factor(weekday),family = poisson(link = "log"),
+                  dataset5)
+gam.check(covid_gam2)
+summary(covid_gam2 )
+
+AIC(covid_gam1,covid_gam2)
+BIC(covid_gam1,covid_gam2)
+
+
+#Q1
+covid_gam1 <- gam(deaths~ s(day) + s(delay) + as.factor(weekday),family = nb(link = "log"),
+                  dataset5)
+gam.check(covid_gam1)
+summary(covid_gam1 )
+plot(covid_gam1, select = 1, pch = 20, shade = TRUE, residuals = TRUE)
+
+#Q2 weekend effect
+summary(covid_gam1 )
+
+display.brewer.all(colorblindFriendly = TRUE)      # Show all color palettes
+
+ggplot(dataset5,aes(fill = delay, y=deaths, x=weekday)) +
+  geom_bar(stat='identity')+
+  scale_fill_gradientn(colors=brewer.pal(n=3, name="Set2"))+
+  theme(   panel.border = element_blank())+
+  theme_classic()
+
+
+#Q3
+dataset_q3 <- dataset5
+deaths_q3<-ggplot(dataset_q3,aes(fill = delay, y=deaths, x=delay)) +
+  geom_bar(stat='identity')+
+  scale_fill_gradientn(colors=brewer.pal(n=3, name="Set2"))+
+  theme(   panel.border = element_blank())+
+  theme_classic()
+deaths_q3
+plot(covid_gam1, select = 2, pch = 20, shade = TRUE, residuals = TRUE)
+
+
+#Q4 predict
+train <- dataset5[1:812,]
+test <- dataset5[30:61,]
+predict(covid_gam1,test)
+plot(predict(covid_gam1,test))
+
+```

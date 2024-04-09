@@ -1,8 +1,12 @@
- <b>Project Name:</b>Nowcasting hospital deaths from  COVID-19 in London
+ <b>Project Name</b>
+ 
+ Nowcasting hospital deaths from  COVID-19 in London
 
- <b>Tools<b>:Python,R
+ <b>Tools</b>
+ 
+ Python,R
 
-<b>Analysis Details:<b>
+<b>Analysis Details</b>
 
 • Pre-processing 10000+ death data in R by extracting,transforming and loading data.
 
@@ -11,4 +15,6 @@
 • To improve deaths nowcasting accuracy, built and trained machine learning models such as SARIMAX Model,XGBOOST and NN Model using
 Scikit-Learn package in Python to compared different Time Series Prediction output.
  
- <b>Project Outcome<b>:Successfully predicted the number of deaths that occur each day for a given time period in London.
+ <b>Project Outcome</b>
+ 
+ Successfully predicted the number of deaths that occur each day for a given time period in London.
